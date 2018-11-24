@@ -14,6 +14,7 @@
                  :class="{current:currentAttr === attr}"
                  v-if="attr.name === 'Rect'" :style="{width:attr.width + 'px', height: attr.height + 'px',
                  left:attr.x + 'px', top:attr.y + 'px',
+                 zIndex:attr.zIndex,
                  background:attr.background,border:'1px solid ' + attr.borderColor,borderRadius:attr.radius + 'px' }"></div>
             <div class="canvas-item"
                  @mousedown="dragBegin($event,attr)"
@@ -21,13 +22,15 @@
                  v-if="attr.name === 'Image'" :style="{width:attr.width + 'px', height: attr.height + 'px',
                  left:attr.x + 'px', top:attr.y + 'px',
                  border:'1px solid ' + attr.borderColor,
-                 background:'red',borderRadius:attr.radius ? '50%' : '0' }"></div>
+                 zIndex:attr.zIndex,
+                 background:'red',borderRadius:attr.circle ? '50%' : '0' }"></div>
             <div class="canvas-item"
                  @mousedown="dragBegin($event,attr)"
                  :class="{current:currentAttr === attr}"
                  v-if="attr.name === 'Text'" :style="{
                  left:attr.x + 'px', top:attr.y + 'px',
-                 maxWidth:attr.maxWidth,fontSize:attr.fontSize,color:attr.color,height:attr.limitRow+'em',overflow:'hidden',textOverflow: 'ellipsis' }">{{attr.text}}</div>
+                 zIndex:attr.zIndex,
+                 maxWidth:attr.maxWidth + 'px',fontSize:attr.fontSize,color:attr.color,height:attr.limitRow+'em',overflow:'hidden',textOverflow: 'ellipsis' }">{{attr.text}}</div>
           </template>
         </div>
       </div>
@@ -61,6 +64,10 @@
           <div class="setItem" v-if="currentAttr.name === 'Rect'">
             <h4>Rect Attribute</h4>
             <el-form  label-width="100px" >
+              <el-form-item label="z-index">
+                <el-input style="width: 200px" size="mini" type="number" v-model="currentAttr.zIndex">
+                </el-input>
+              </el-form-item>
               <el-form-item label="x">
                 <el-input style="width: 200px" size="mini" type="number" v-model="currentAttr.x">
                   <template slot="append">px</template>
@@ -98,6 +105,10 @@
           <div class="setItem" v-if="currentAttr.name === 'Image'">
             <h4>Image Attribute</h4>
             <el-form  label-width="100px" >
+              <el-form-item label="z-index">
+                <el-input style="width: 200px" size="mini" type="number" v-model="currentAttr.zIndex">
+                </el-input>
+              </el-form-item>
               <el-form-item label="x">
                 <el-input style="width: 200px" size="mini" type="number" v-model="currentAttr.x">
                   <template slot="append">px</template>
@@ -126,6 +137,13 @@
               <el-form-item label="border color">
                 <el-color-picker v-model="currentAttr.borderColor"></el-color-picker>
               </el-form-item>
+              <el-form-item label="circle">
+                <el-switch
+                  v-model="currentAttr.circle"
+                  active-color="#13ce66"
+                  inactive-color="#ff4949">
+                </el-switch>
+              </el-form-item>
             </el-form>
           </div>
           <!--Text配置属性-->
@@ -133,6 +151,10 @@
           <div class="setItem" v-if="currentAttr.name === 'Text'">
             <h4>Text Attribute</h4>
             <el-form  label-width="100px" >
+              <el-form-item label="z-index">
+                <el-input style="width: 200px" size="mini" type="number" v-model="currentAttr.zIndex">
+                </el-input>
+              </el-form-item>
               <el-form-item label="x">
                 <el-input style="width: 200px" size="mini" type="number" v-model="currentAttr.x">
                   <template slot="append">px</template>
@@ -158,17 +180,27 @@
                 </el-input>
               </el-form-item>
               <el-form-item label="content">
-                <el-input type="textarea" autosize placeholder="请输入内容">{{currentAttr.text}}</el-input>
+                <el-input type="textarea" autosize placeholder="请输入内容" v-model="currentAttr.text"></el-input>
               </el-form-item>
               <el-form-item label="color">
-                <el-color-picker></el-color-picker>
+                <el-color-picker v-model="currentAttr.color"></el-color-picker>
               </el-form-item>
             </el-form>
           </div>
 
         </template>
-
+        <div style="text-align: right;margin-top: 50px">
+          <el-button type="primary" size="mini" @click="genCode">生成代码</el-button>
+        </div>
       </div>
+    </div>
+    <div class="genCodebox">
+      <el-input
+        autosize
+        type="textarea"
+        placeholder="请输入内容"
+        v-model="canvasCode">
+      </el-input>
     </div>
   </div>
 </template>
@@ -210,7 +242,8 @@
             canvas_width:'375',
             canvas_height:'667',
             attrs:[],
-            currentAttr:null
+            currentAttr:null,
+            canvasCode:''
           }
         },
       methods:{
@@ -225,14 +258,16 @@
               maxWidth:null,
               limitRow:null,
               color:'#333',
-              fontSize:14
+              fontSize:14,
+              zIndex:1
             }
           } else {
             attr = {
               x:0,
               y:0,
               width:50,
-              height:50
+              height:50,
+              zIndex:1
             }
             if (item.name === IMAGE){
               attr['circle'] = false
@@ -311,7 +346,208 @@
         dragEnd(){
           isDrag = false
           console.log('结束')
+        },
+        genCode(){
+          let new_attrs = this.attrs.slice()
+          new_attrs.sort(function (a,b) {
+            if (parseFloat(a.zIndex) < parseFloat(b.zIndex)){
+              return -1
+            }else if (parseFloat(a.zIndex) > parseFloat(b.zIndex)) {
+              return 1
+            }else {
+              return 0
+            }
+          })
+
+
+          let code = `
+
+            <canvas canvas-id="canvas" style="width:${this.canvas_width}px; height: ${this.canvas_height}px;"></canvas>
+
+            let context;
+            const WIDTH = ${this.canvas_width}, HEIGHT = ${this.canvas_width};
+
+            Page({
+              data: {
+              },
+              onLoad(options) {
+                context = wx.createCanvasContext('canvas');
+                wx.chooseImage({
+                  success: (res) => {
+                    this.draw(res.tempFilePaths[0]);
+                  }
+                })
+
+              },
+
+              draw(url) {
+          `
+
+          for(let i = 0; i < new_attrs.length; i++){
+            let new_attr = new_attrs[i]
+            if (new_attr.name === RECT){
+              new_attr.radius = parseFloat(new_attr.radius)
+              if (new_attr.radius === 0){
+                code += `
+                  context.setFillStyle('${new_attr.background}')
+                  context.fillRect(${new_attr.x},${new_attr.y},${new_attr.width},${new_attr.height});
+                  context.setStrokeStyle('${new_attr.borderColor}')
+                  context.strokeRect(${new_attr.x},${new_attr.y},${new_attr.width},${new_attr.height})
+                `
+              }else{
+                code += `
+                  context.beginPath();
+                  context.moveTo(${new_attr.x + new_attr.radius},${new_attr.y})
+                  context.lineTo(${new_attr.x + new_attr.width - new_attr.radius},${new_attr.y})
+                  context.quadraticCurveTo(
+                    ${new_attr.x + new_attr.width},
+                    ${new_attr.y},
+                    ${new_attr.x + new_attr.width},
+                    ${new_attr.y + new_attr.radius}
+                  )
+                  context.lineTo(${new_attr.x + new_attr.width},${new_attr.y + new_attr.height - new_attr.radius})
+                  context.quadraticCurveTo(
+                    ${new_attr.x + new_attr.width},
+                    ${new_attr.y + new_attr.height},
+                    ${new_attr.x + new_attr.width - new_attr.radius},
+                    ${new_attr.y + new_attr.height}
+                  )
+                  context.lineTo(${new_attr.x + new_attr.radius},${new_attr.y + new_attr.height})
+                  context.quadraticCurveTo(
+                    ${new_attr.x},
+                    ${new_attr.y + new_attr.height},
+                    ${new_attr.x},
+                    ${new_attr.y + new_attr.height - new_attr.radius}
+                  )
+                  context.lineTo(${new_attr.x},${new_attr.y + new_attr.radius})
+                  context.quadraticCurveTo(
+                    ${new_attr.x},
+                    ${new_attr.y},
+                    ${new_attr.x + new_attr.radius},
+                    ${new_attr.y}
+                  )
+                  context.closePath();
+
+                  context.setFillStyle('${new_attr.background}')
+                  context.fill();
+                  context.setStrokeStyle('${new_attr.borderColor}')
+                  context.stroke()
+                `
+              }
+            }else if(new_attr.name === IMAGE){
+              if (new_attr.circle){
+                code += `
+                  context.save()
+                  context.beginPath()
+                  context.arc(${new_attr.x + new_attr.width/2},${new_attr.y + new_attr.height/2},${new_attr.width/2} , 0, 2*Math.PI)
+                  context.clip()
+                  context.drawImage(url, ${new_attr.x}, ${new_attr.y}, ${new_attr.width}, ${new_attr.height})
+                  context.restore()
+                `
+              } else{
+                code += `
+                  context.drawImage(url, ${new_attr.x}, ${new_attr.y}, ${new_attr.width}, ${new_attr.height})
+                `
+              }
+
+            }else if(new_attr.name === TEXT) {
+              if(new_attr.maxWidth || new_attr.limitRow){
+                code += `
+                  // const context = wx.createCanvasContext('myCanvas')
+                  var text = '${new_attr.text}';//这是要绘制的文本
+                  context.setFontSize(${new_attr.fontSize})
+                  context.setFillStyle("${new_attr.color}")
+                  let chr = text.split("");//这个方法是将一个字符串分割成字符串数组
+                  let temp = "";
+                  let row = [];
+                  if(${new_attr.maxWidth}){
+                    for (let a = 0; a < chr.length; a++) {
+                      if (context.measureText(temp).width < ${new_attr.maxWidth}) {
+                        temp += chr[a];
+                      }
+                      else {
+                        a--; //这里添加了a-- 是为了防止字符丢失，效果图中有对比
+                        row.push(temp);
+                        temp = "";
+                      }
+                    }
+                    row.push(temp);
+                  }
+                  if(${new_attr.limitRow}){
+                    //如果数组长度大于2 则截取前两个
+                    if (row.length > ${new_attr.limitRow}) {
+                      let rowCut = row.slice(0,${new_attr.limitRow});
+                      let rowPart = rowCut[${new_attr.limitRow} - 1];
+                      console.log(rowPart.length)
+                      let test = "";
+                      let empty = [];
+                      for (let a = 0; a < rowPart.length; a++) {
+                        if (context.measureText(test).width < (${new_attr.maxWidth} - 30)) {
+                          test += rowPart[a];
+                        }
+                        else {
+                          break;
+                        }
+                      }
+                      empty.push(test);
+                      let group = empty[0] + "..."//这里只显示两行，超出的用...表示
+                      rowCut.splice(1, 1, group);
+                      row = rowCut;
+                    }
+                  }
+                  for (var b = 0; b < row.length; b++) {
+                    context.fillText(row[b], ${new_attr.x}, b*${new_attr.fontSize+5} + ${new_attr.y}, ${new_attr.maxWidth});
+                  }
+                `
+              }else {
+                code += `
+                  context.fillText('${new_attr.text}', ${new_attr.x}, ${new_attr.y});
+                `
+              }
+            }
+
+          }
+
+          code += `
+               context.draw(false, () => {
+                  wx.canvasToTempFilePath({
+
+                    canvasId: 'canvas',
+                    quality: 1,
+                    success: (res) => {
+                      console.log(res.tempFilePath)
+                      this.setData({
+                        image: res.tempFilePath
+                      })
+                      wx.saveImageToPhotosAlbum({
+                        filePath: res.tempFilePath,
+                      })
+                    }
+                  })
+                })
+              }
+            })
+          `
+
+          this.canvasCode = code
+
+
         }
+      },
+      mounted(){
+
+        // let canvasBox = document.getElementsByClassName('canvas-box')[0]
+        // console.log(canvasBox)
+        document.onkeydown = (event) => {
+          console.log(event)
+          if (! (event.target.tagName === 'INPUT' || event.target.tagName === 'TEXTAREA')){
+            if(event.keyCode === 8) {
+              var oIndex = this.attrs.indexOf(this.currentAttr)
+              this.attrs.splice(oIndex,1)
+            }
+          }
+
+      　}
       }
     }
 </script>
@@ -352,7 +588,7 @@
           box-sizing: border-box;
 
           &.current {
-            border:1px solid deepskyblue;
+            outline:1px solid deepskyblue;
           }
         }
       }
