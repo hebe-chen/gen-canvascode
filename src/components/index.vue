@@ -347,20 +347,8 @@
           isDrag = false
           console.log('结束')
         },
-        genCode(){
-          let new_attrs = this.attrs.slice()
-          new_attrs.sort(function (a,b) {
-            if (parseFloat(a.zIndex) < parseFloat(b.zIndex)){
-              return -1
-            }else if (parseFloat(a.zIndex) > parseFloat(b.zIndex)) {
-              return 1
-            }else {
-              return 0
-            }
-          })
-
-
-          let code = `
+        genCodeHeader() {
+          return  `
 
             <canvas canvas-id="canvas" style="width:${this.canvas_width}px; height: ${this.canvas_height}px;"></canvas>
 
@@ -381,62 +369,75 @@
               },
 
               draw(url) {
-          `
 
-          for(let i = 0; i < new_attrs.length; i++){
-            let new_attr = new_attrs[i]
-            if (new_attr.name === RECT){
-              new_attr.radius = parseFloat(new_attr.radius)
-              if (new_attr.radius === 0){
-                code += `
+          `
+        },
+        genCodeRect(new_attr, pool) {
+          new_attr.radius = parseFloat(new_attr.radius)
+          if (new_attr.radius === 0){
+            return `
                   context.setFillStyle('${new_attr.background}')
                   context.fillRect(${new_attr.x},${new_attr.y},${new_attr.width},${new_attr.height});
                   context.setStrokeStyle('${new_attr.borderColor}')
                   context.strokeRect(${new_attr.x},${new_attr.y},${new_attr.width},${new_attr.height})
                 `
-              }else{
-                code += `
-                  context.beginPath();
-                  context.moveTo(${new_attr.x + new_attr.radius},${new_attr.y})
-                  context.lineTo(${new_attr.x + new_attr.width - new_attr.radius},${new_attr.y})
-                  context.quadraticCurveTo(
-                    ${new_attr.x + new_attr.width},
-                    ${new_attr.y},
-                    ${new_attr.x + new_attr.width},
-                    ${new_attr.y + new_attr.radius}
-                  )
-                  context.lineTo(${new_attr.x + new_attr.width},${new_attr.y + new_attr.height - new_attr.radius})
-                  context.quadraticCurveTo(
-                    ${new_attr.x + new_attr.width},
-                    ${new_attr.y + new_attr.height},
-                    ${new_attr.x + new_attr.width - new_attr.radius},
-                    ${new_attr.y + new_attr.height}
-                  )
-                  context.lineTo(${new_attr.x + new_attr.radius},${new_attr.y + new_attr.height})
-                  context.quadraticCurveTo(
-                    ${new_attr.x},
-                    ${new_attr.y + new_attr.height},
-                    ${new_attr.x},
-                    ${new_attr.y + new_attr.height - new_attr.radius}
-                  )
-                  context.lineTo(${new_attr.x},${new_attr.y + new_attr.radius})
-                  context.quadraticCurveTo(
-                    ${new_attr.x},
-                    ${new_attr.y},
-                    ${new_attr.x + new_attr.radius},
-                    ${new_attr.y}
-                  )
-                  context.closePath();
+          }else{
+            if (!pool.isRectRadius){
+              pool.isRectRadius = 'setRectRadius'
+              return `
+                    function ${pool.isRectRadius}(x,y,width,height,background,borderColor,radius){
+                      context.beginPath();
+                      context.moveTo(x + radius,y)
+                      context.lineTo(x + width - radius,y)
+                      context.quadraticCurveTo(
+                        x + width,
+                        y,
+                        x + width,
+                        y + radius
+                      )
+                      context.lineTo(x + width,y + height - radius)
+                      context.quadraticCurveTo(
+                        x + width,
+                        y + height,
+                        x + width - radius,
+                        y + height
+                      )
+                      context.lineTo(x + radius,y + height)
+                      context.quadraticCurveTo(
+                        x,
+                        y + height,
+                        x,
+                        y + height - radius
+                      )
+                      context.lineTo(x,y + radius)
+                      context.quadraticCurveTo(
+                        x,
+                        y,
+                        x + radius,
+                        y
+                      )
+                      context.closePath();
 
-                  context.setFillStyle('${new_attr.background}')
-                  context.fill();
-                  context.setStrokeStyle('${new_attr.borderColor}')
-                  context.stroke()
-                `
-              }
-            }else if(new_attr.name === IMAGE){
-              if (new_attr.circle){
-                code += `
+                      context.setFillStyle(background)
+                      context.fill();
+                      context.setStrokeStyle(borderColor)
+                      context.stroke()
+                    }
+                    ${pool.isRectRadius}(${new_attr.x},
+                                  ${new_attr.y},${new_attr.width},${new_attr.height},
+                                  '${new_attr.background}','${new_attr.borderColor}',${new_attr.radius})
+                  `
+            }else {
+              return `${pool.isRectRadius}(${new_attr.x},
+                    ${new_attr.y},${new_attr.width},${new_attr.height},
+                    '${new_attr.background}','${new_attr.borderColor}',${new_attr.radius})
+                  `
+            }
+          }
+        },
+        getCodeImage(new_attr){
+          if (new_attr.circle){
+            return `
                   context.save()
                   context.beginPath()
                   context.arc(${new_attr.x + new_attr.width/2},${new_attr.y + new_attr.height/2},${new_attr.width/2} , 0, 2*Math.PI)
@@ -444,15 +445,15 @@
                   context.drawImage(url, ${new_attr.x}, ${new_attr.y}, ${new_attr.width}, ${new_attr.height})
                   context.restore()
                 `
-              } else{
-                code += `
+          } else{
+            return  `
                   context.drawImage(url, ${new_attr.x}, ${new_attr.y}, ${new_attr.width}, ${new_attr.height})
                 `
-              }
-
-            }else if(new_attr.name === TEXT) {
-              if(new_attr.maxWidth || new_attr.limitRow){
-                code += `
+          }
+        },
+        getCodeText(new_attr){
+          if(new_attr.maxWidth || new_attr.limitRow){
+            return `
                   // const context = wx.createCanvasContext('myCanvas')
                   var text = '${new_attr.text}';//这是要绘制的文本
                   context.setFontSize(${new_attr.fontSize})
@@ -499,16 +500,16 @@
                     context.fillText(row[b], ${new_attr.x}, b*${new_attr.fontSize+5} + ${new_attr.y}, ${new_attr.maxWidth});
                   }
                 `
-              }else {
-                code += `
+          }else {
+            return `
+                  context.setFontSize(${new_attr.fontSize})
+                  context.setFillStyle("${new_attr.color}")
                   context.fillText('${new_attr.text}', ${new_attr.x}, ${new_attr.y});
                 `
-              }
-            }
-
           }
-
-          code += `
+        },
+        genCodeEnd(){
+          return `
                context.draw(false, () => {
                   wx.canvasToTempFilePath({
 
@@ -528,6 +529,37 @@
               }
             })
           `
+        },
+        genCode(){
+          let new_attrs = this.attrs.slice()
+          new_attrs.sort(function (a,b) {
+            if (parseFloat(a.zIndex) < parseFloat(b.zIndex)){
+              return -1
+            }else if (parseFloat(a.zIndex) > parseFloat(b.zIndex)) {
+              return 1
+            }else {
+              return 0
+            }
+          })
+
+          let pool = {}
+          let code = this.genCodeHeader()
+
+          for(let i = 0; i < new_attrs.length; i++){
+            let new_attr = new_attrs[i]
+            if (new_attr.name === RECT){
+              code += this.genCodeRect(new_attr,pool)
+
+            }else if(new_attr.name === IMAGE){
+              code += this.getCodeImage(new_attr)
+
+            }else if(new_attr.name === TEXT) {
+              code += this.getCodeText(new_attr)
+            }
+
+          }
+
+          code += this.genCodeEnd()
 
           this.canvasCode = code
 
